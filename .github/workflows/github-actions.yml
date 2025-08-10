@@ -21,7 +21,7 @@ on:
 env:
   APP_NAME: my-enterprise-app
   DOCKER_REGISTRY: index.docker.io/v1
-  VERSION: ${{ github.ref_name.replace('release/', '') || 'dev' }}
+  VERSION: ${{ github.ref_name == 'release' && github.sha || 'dev' }}
 
 jobs:
   build-and-test:
