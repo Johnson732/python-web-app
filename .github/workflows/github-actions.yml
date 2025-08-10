@@ -1,4 +1,4 @@
-name: Multi-Stage Enterprise Deployment
+name: Multi-Stage Enterprise Deployment (Python web app)
 
 on:
   push:
@@ -19,7 +19,7 @@ on:
           - prod
 
 env:
-  APP_NAME: my-enterprise-app
+  APP_NAME: python-web-app
   DOCKER_REGISTRY: index.docker.io/v1
   VERSION: ${{ github.ref_name == 'release' && github.sha || 'dev' }}
 
@@ -111,11 +111,13 @@ jobs:
     needs: build-and-test
     if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'qa'
     runs-on: ubuntu-latest
-    environment: qa
+    environment:
+      name: qa
+      url: https://your-app-qa-url
     steps:
       - name: Placeholder for QA Deployment
         run: echo "QA deployment stage is skipped. Will deploy to my-enterprise-app-qa later."
-
+        
       # Uncomment below lines for actual deployment when ready
       # - uses: azure/login@v1
       #   with:
@@ -141,13 +143,15 @@ jobs:
   deploy-uat:
     name: Deploy to UAT (Placeholder)
     needs: build-and-test
-    if: github.event.inputs.target_env == 'uat'
+    if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'uat'
     runs-on: ubuntu-latest
-    environment: uat
+    environment:
+      name: uat
+      url: https://your-app-uat-url
     steps:
       - name: Placeholder for UAT Deployment
         run: echo "UAT deployment stage is skipped. Will deploy to my-enterprise-app-uat later."
-
+        
       # Uncomment below lines for actual deployment when ready
       # - uses: trstringer/manual-approval@v1
       #   with:
@@ -169,15 +173,12 @@ jobs:
   deploy-prod:
     name: Deploy to Prod
     needs: build-and-test
-    if: github.ref == 'refs/heads/release/**' || github.event.inputs.target_env == 'prod'
+    if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'prod'
     runs-on: ubuntu-latest
-    environment: prod
+    environment:
+      name: prod
+      url: https://your-app-prod-url
     steps:
-      - uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ secrets.APPROVAL_TOKEN }}
-          approvers: "prod-team,security-team"
-          minimum-approvals: 2
 
       - uses: azure/login@v1
         with:
