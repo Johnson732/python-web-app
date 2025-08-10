@@ -109,7 +109,7 @@ jobs:
   deploy-qa:
     name: Deploy to QA (Placeholder)
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'qa'
+    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'qa'
     runs-on: ubuntu-latest
     environment:
       name: qa
@@ -143,7 +143,7 @@ jobs:
   deploy-uat:
     name: Deploy to UAT (Placeholder)
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'uat'
+    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'uat'
     runs-on: ubuntu-latest
     environment:
       name: uat
@@ -173,7 +173,7 @@ jobs:
   deploy-prod:
     name: Deploy to Prod
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') && github.event.inputs.target_env == 'prod'
+    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'prod'
     runs-on: ubuntu-latest
     environment:
       name: prod
