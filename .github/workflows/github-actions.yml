@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - 'release/**'  # Only release branches trigger now (prod)
-      - main  # main branches for dev (placeholder)
+      - 'main'  # main branches for dev (placeholder)
   workflow_dispatch:
     inputs:
       target_env:
