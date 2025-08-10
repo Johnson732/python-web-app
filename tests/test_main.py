@@ -9,4 +9,5 @@ def client():
 def test_index(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert b"I'm from Python" in resp.data
+    html = resp.data.decode('utf-8')
+    assert "I'm from Python" in html  # Decoding handles the HTML entities
