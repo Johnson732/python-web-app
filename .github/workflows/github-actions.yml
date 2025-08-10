@@ -87,7 +87,7 @@ jobs:
   deploy-dev:
     name: Deploy to Dev (Placeholder)
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/feature/') || github.event.inputs.target_env == 'dev'
+    if: startsWith(github.ref, 'refs/heads/main') || github.event.inputs.target_env == 'dev'
     runs-on: ubuntu-latest
     environment: dev
     steps:
