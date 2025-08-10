@@ -82,7 +82,7 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.tag.outputs.version }}
-          sbom: true
+          sbom: false
 
   deploy-dev:
     name: Deploy to Dev (Placeholder)
