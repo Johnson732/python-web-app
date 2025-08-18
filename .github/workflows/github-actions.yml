@@ -21,29 +21,27 @@ on:
 env:
   APP_NAME: python_web_app
   DOCKER_REGISTRY: index.docker.io/v1
-  VERSION: ${{ github.ref_name == 'release/' && github.sha || 'dev' }}
 
 jobs:
   build-and-test:
-
-    name: Job 1 - Build, Test #verify name
+    name: Job 1 - Build, Test
     runs-on: ubuntu-latest
     outputs:
-      image-tag: ${{ steps.tag.outputs.version }}
+      image-tag: ${{ steps.version-tag.outputs.version }}
 
     steps:
       - name: Marketplace (checkout)
         uses: actions/checkout@v4
 
-      - name: Set Verison
-        id : version-tag
+      - name: Set Version
+        id: version-tag
         run: |
-          if [[ "$GITHUB_REF" == ref/heads/release/* ]]; then
+          if [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
             echo "version=${GITHUB_REF#refs/heads/release/}" >> $GITHUB_OUTPUT
           else
             echo "version=dev-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
           fi
-        
+
       - name: Marketplace (setup python)
         uses: actions/setup-python@v5
         with:
@@ -54,17 +52,17 @@ jobs:
           pip install -r requirements.txt pytest
           pytest --junitxml=test-results.xml
           
-    # ---- Commented out Trivy Scan ----
+      # ---- Commented out Trivy Scan ----
       # - name: Run Trivy Vulnerability Scan
       #   uses: aquasecurity/trivy-action@master
       #   with:
-      #     image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.tag.outputs.version }}
+      #     image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.version-tag.outputs.version }}
 
       # ---- Commented out Cosign Image Signing ----
       # - name: Sign Docker Image with Cosign
       #   uses: sigstore/cosign-action@v1
       #   with:
-      #     image: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.tag.outputs.version }}
+      #     image: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.version-tag.outputs.version }}
       #     key: ${{ secrets.COSIGN_PRIVATE_KEY }}
 
       # ---- Commented out SonarQube Scan ----
@@ -74,7 +72,7 @@ jobs:
       #     projectBaseDir: './'
       #   env:
       #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    #
+
       - name: Docker Hub Login uses Marketplace (docker login)
         uses: docker/login-action@v2
         with:
@@ -90,29 +88,25 @@ jobs:
           sbom: false
 
   deploy-dev:
-    name: Deploy to Dev (Placeholder)
+    name: Deploy to Dev
     needs: build-and-test
     if: startsWith(github.ref, 'refs/heads/main') || github.event.inputs.target_env == 'dev'
     runs-on: ubuntu-latest
     environment: dev
     steps:
-      - name: Placeholder for Dev Deployment
-        run: echo "Dev deployment stage is skipped. Will deploy to my-enterprise-app-dev later."
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_DEV_CREDS }}
 
-      # Uncomment below lines for actual deployment when ready
-      # - uses: azure/login@v1
-      #   with:
-      #     creds: ${{ secrets.AZURE_DEV_CREDS }}
-
-      # - name: Deploy
-      #   run: |
-      #     az webapp config container set \
-      #       --name ${{ env.APP_NAME }}-dev \
-      #       --resource-group rg-dev \
-      #       --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
+      - name: Deploy to Dev
+        run: |
+          az webapp config container set \
+            --name ${{ env.APP_NAME }}-dev \
+            --resource-group rg-dev \
+            --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
   deploy-qa:
-    name: Deploy to QA (Placeholder)
+    name: Deploy to QA
     needs: build-and-test
     if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'qa'
     runs-on: ubuntu-latest
@@ -120,33 +114,19 @@ jobs:
       name: qa
       url: https://your-app-qa-url
     steps:
-      - name: Placeholder for QA Deployment
-        run: echo "QA deployment stage is skipped. Will deploy to my-enterprise-app-qa later."
-        
-      # Uncomment below lines for actual deployment when ready
-      # - uses: azure/login@v1
-      #   with:
-      #     creds: ${{ secrets.AZURE_QA_CREDS }}
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_QA_CREDS }}
 
-      # - name: Deploy
-      #   run: |
-      #     az webapp config container set \
-      #       --name ${{ env.APP_NAME }}-qa \
-      #       --resource-group rg-qa \
-      #       --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
-
-      # - uses: actions/github-script@v6
-      #   with:
-      #     script: |
-      #       github.rest.issues.createComment({
-      #         issue_number: context.issue.number,
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         body: 'QA deployment ready for testing: https://${{ env.APP_NAME }}-qa.azurewebsites.net'
-      #       })
+      - name: Deploy to QA
+        run: |
+          az webapp config container set \
+            --name ${{ env.APP_NAME }}-qa \
+            --resource-group rg-qa \
+            --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
   deploy-uat:
-    name: Deploy to UAT (Placeholder)
+    name: Deploy to UAT
     needs: build-and-test
     if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'uat'
     runs-on: ubuntu-latest
@@ -154,26 +134,16 @@ jobs:
       name: uat
       url: https://your-app-uat-url
     steps:
-      - name: Placeholder for UAT Deployment
-        run: echo "UAT deployment stage is skipped. Will deploy to my-enterprise-app-uat later."
-        
-      # Uncomment below lines for actual deployment when ready
-      # - uses: trstringer/manual-approval@v1
-      #   with:
-      #     secret: ${{ secrets.APPROVAL_TOKEN }}
-      #     approvers: "qa-team"
-      #     minimum-approvals: 1
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_UAT_CREDS }}
 
-      # - uses: azure/login@v1
-      #   with:
-      #     creds: ${{ secrets.AZURE_UAT_CREDS }}
-
-      # - name: Deploy
-      #   run: |
-      #     az webapp config container set \
-      #       --name ${{ env.APP_NAME }}-uat \
-      #       --resource-group rg-uat \
-      #       --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
+      - name: Deploy to UAT
+        run: |
+          az webapp config container set \
+            --name ${{ env.APP_NAME }}-uat \
+            --resource-group rg-uat \
+            --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
   deploy-prod:
     name: Deploy to Prod
@@ -184,30 +154,13 @@ jobs:
       name: prod
       url: https://your-app-prod-url
     steps:
-
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_PROD_CREDS }}
 
-      - name: Blue/Green Deployment
+      - name: Deploy to Production
         run: |
-          # Deploy to staging slot first
           az webapp config container set \
             --name ${{ env.APP_NAME }} \
             --resource-group rg-prod \
-            --slot staging \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
-
-          # Warm up
-          az webapp restart --name ${{ env.APP_NAME }} --slot staging
-          sleep 30
-
-          # Smoke test
-          curl -f https://${{ env.APP_NAME }}-staging.azurewebsites.net/health
-
-          # Swap staging with production
-          az webapp deployment slot swap \
-            --name ${{ env.APP_NAME }} \
-            --resource-group rg-prod \
-            --slot staging \
-            --target-slot production
