@@ -20,29 +20,25 @@ on:
 
 env:
   APP_NAME: python_web_app
-  DOCKER_REGISTRY: index.docker.io/v1
+  DOCKER_REGISTRY: docker.io
 
 jobs:
   build-and-test:
-    name: Job 1 - Build, Test
+    name: Build & Test, Push Image
     runs-on: ubuntu-latest
     outputs:
-      image-tag: ${{ steps.version-tag.outputs.version }}
+      image-tag: ${{ steps.set-version.outputs.version }}
 
     steps:
-      - name: Marketplace (checkout)
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set Version
-        id: version-tag
+        id: set-version
         run: |
-          if [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
-            echo "version=${GITHUB_REF#refs/heads/release/}" >> $GITHUB_OUTPUT
-          else
-            echo "version=dev-${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
-          fi
+          echo "version=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
-      - name: Marketplace (setup python)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -51,40 +47,19 @@ jobs:
         run: |
           pip install -r requirements.txt pytest
           pytest --junitxml=test-results.xml
-          
-      # ---- Commented out Trivy Scan ----
-      # - name: Run Trivy Vulnerability Scan
-      #   uses: aquasecurity/trivy-action@master
-      #   with:
-      #     image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.version-tag.outputs.version }}
 
-      # ---- Commented out Cosign Image Signing ----
-      # - name: Sign Docker Image with Cosign
-      #   uses: sigstore/cosign-action@v1
-      #   with:
-      #     image: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.version-tag.outputs.version }}
-      #     key: ${{ secrets.COSIGN_PRIVATE_KEY }}
-
-      # ---- Commented out SonarQube Scan ----
-      # - name: SonarQube Scan
-      #   uses: SonarSource/sonarcloud-github-action@master
-      #   with:
-      #     projectBaseDir: './'
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: Docker Hub Login uses Marketplace (docker login)
+      - name: Docker Hub Login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Docker Build uses Marketplace (docker build)
+      - name: Build & Push Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.version-tag.outputs.version }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.set-version.outputs.version }}
           sbom: false
 
   deploy-dev:
@@ -108,7 +83,7 @@ jobs:
   deploy-qa:
     name: Deploy to QA
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'qa'
+    if: github.event.inputs.target_env == 'qa'
     runs-on: ubuntu-latest
     environment:
       name: qa
@@ -128,7 +103,7 @@ jobs:
   deploy-uat:
     name: Deploy to UAT
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'uat'
+    if: github.event.inputs.target_env == 'uat'
     runs-on: ubuntu-latest
     environment:
       name: uat
@@ -148,7 +123,7 @@ jobs:
   deploy-prod:
     name: Deploy to Prod
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/release/') || github.event.inputs.target_env == 'prod'
+    if: github.event.inputs.target_env == 'prod'
     runs-on: ubuntu-latest
     environment:
       name: prod
