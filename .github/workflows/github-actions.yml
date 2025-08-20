@@ -72,12 +72,12 @@ jobs:
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_DEV_CREDS }}
-
+  
       - name: Deploy to Dev
         run: |
           az webapp config container set \
-            --name ${{ env.APP_NAME }}-dev \
-            --resource-group rg-dev \
+            --name johnson-python-webapp \
+            --resource-group johnson-python-webapp \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
   deploy-qa:
