@@ -112,7 +112,8 @@ jobs:
     steps:
       - uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_QA_CREDS }}
+          creds: ${{ secrets.AZURE_DEV_CREDS }}
+          # creds: ${{ secrets.AZURE_QA_CREDS }}
 
       - run: |
           az webapp config container set \
@@ -138,7 +139,8 @@ jobs:
     steps:
       - uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_UAT_CREDS }}
+          # creds: ${{ secrets.AZURE_UAT_CREDS }}
+          creds: ${{ secrets.AZURE_DEV_CREDS }}
 
       - run: |
           az webapp config container set \
@@ -164,7 +166,8 @@ jobs:
     steps:
       - uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_PROD_CREDS }}
+          # creds: ${{ secrets.AZURE_PROD_CREDS }}
+          creds: ${{ secrets.AZURE_DEV_CREDS }}
 
       - run: |
           az webapp config container set \
