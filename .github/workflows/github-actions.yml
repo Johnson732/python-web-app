@@ -23,119 +23,157 @@ env:
   DOCKER_REGISTRY: docker.io
 
 jobs:
+  # =====================================================
+  # BUILD & PUSH IMAGE
+  # =====================================================
   build-and-test:
     name: Build & Test, Push Image
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.set-version.outputs.version }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set Version
         id: set-version
-        run: |
-          echo "version=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Run Tests
         run: |
           pip install -r requirements.txt pytest
           pytest --junitxml=test-results.xml
 
-      - name: Docker Hub Login
-        uses: docker/login-action@v2
+      - uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push Docker Image
-        uses: docker/build-push-action@v4
+      - uses: docker/build-push-action@v4
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.set-version.outputs.version }}
           sbom: false
 
+      - name: Upload Image Tag Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: |
+            ./image-tag.txt
+          run: echo "${{ steps.set-version.outputs.version }}" > image-tag.txt
+
+      - name: Job Summary
+        run: |
+          echo "### Build completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Image: \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ steps.set-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+
+
+  # =====================================================
+  # DEV DEPLOYMENT
+  # =====================================================
   deploy-dev:
     name: Deploy to Dev
     needs: build-and-test
-    if: startsWith(github.ref, 'refs/heads/main') || github.event.inputs.target_env == 'dev'
+    if: startsWith(github.ref, 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: dev
     steps:
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_DEV_CREDS }}
-  
-      - name: Deploy to Dev
-        run: |
+
+      - run: |
           az webapp config container set \
             --name johnson-python-webapp \
             --resource-group johnson-python-webapp \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
+      - name: Job Summary
+        run: |
+          echo "### Deployed to **Dev**" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # =====================================================
+  # QA DEPLOYMENT (triggered on release/**)
+  # =====================================================
   deploy-qa:
     name: Deploy to QA
     needs: build-and-test
-    if: github.event.inputs.target_env == 'qa'
+    if: startsWith(github.ref, 'refs/heads/release/')
     runs-on: ubuntu-latest
     environment:
-      name: qa
+      name: qa   # configure manual approval in GitHub Environments
       url: https://your-app-qa-url
     steps:
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_QA_CREDS }}
 
-      - name: Deploy to QA
-        run: |
+      - run: |
           az webapp config container set \
-            --name ${{ env.APP_NAME }}-qa \
-            --resource-group rg-qa \
+            --name johnson-python-webapp \
+            --resource-group johnson-python-webapp \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
+      - name: Job Summary
+        run: |
+          echo "### Deployed to **QA**" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # =====================================================
+  # UAT DEPLOYMENT (PROMOTION FROM QA)
+  # =====================================================
   deploy-uat:
     name: Deploy to UAT
-    needs: build-and-test
-    if: github.event.inputs.target_env == 'uat'
+    needs: deploy-qa
     runs-on: ubuntu-latest
     environment:
-      name: uat
+      name: uat   # manual approval required here
       url: https://your-app-uat-url
     steps:
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_UAT_CREDS }}
 
-      - name: Deploy to UAT
-        run: |
+      - run: |
           az webapp config container set \
-            --name ${{ env.APP_NAME }}-uat \
-            --resource-group rg-uat \
+            --name johnson-python-webapp \
+            --resource-group johnson-python-webapp \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
 
+      - name: Job Summary
+        run: |
+          echo "### Deployed to **UAT**" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # =====================================================
+  # PROD DEPLOYMENT (PROMOTION FROM UAT)
+  # =====================================================
   deploy-prod:
     name: Deploy to Prod
-    needs: build-and-test
-    if: github.event.inputs.target_env == 'prod'
+    needs: deploy-uat
     runs-on: ubuntu-latest
     environment:
-      name: prod
+      name: prod   # manual approval required here
       url: https://your-app-prod-url
     steps:
       - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_PROD_CREDS }}
 
-      - name: Deploy to Production
-        run: |
+      - run: |
           az webapp config container set \
-            --name ${{ env.APP_NAME }} \
-            --resource-group rg-prod \
+            --name johnson-python-webapp \
+            --resource-group johnson-python-webapp \
+            # --name ${{ env.APP_NAME }} \
+            # --resource-group rg-prod \
             --docker-custom-image-name ${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}
+      - name: Job Summary
+        run: |
+          echo "### Deployed to **Prod**" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${{ needs.build-and-test.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
